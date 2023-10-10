@@ -1,2 +1,8 @@
 # NLP
-In order to document projects, papers, notes, and code related to the study of NLP during the graduate stage.
+此仓库用于记录研究生阶段学习NLP的相关内容，包含以下方面：
+
+- projects：用于记录优秀的开源项目
+- papers：用于记录 **论文** 和 **论文的笔记和理解**
+- codes：用于记录基础的NLP模型代码，以构建自己的代码工具库
+- leetcode：用于记录刷过的算法题和题解想法
+- notes：用于记录关于NLP的基础知识 **理解笔记**
