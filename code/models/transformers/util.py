@@ -7,22 +7,21 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 
 
-def attention(query: torch.Tensor, key: torch.Tensor, value: torch.Tensor, mask=None, dropout=None):
+def attention(query: torch.Tensor, key: torch.Tensor, value: torch.Tensor, mask=None, dropout: nn.Dropout = None):
     """_summary_
 
-        计算缩放的点积注意力
+        计算缩放点积注意力
 
     Args:
-        query (torch.Tensor): _description_
-        key (torch.Tensor): _description_
-        value (torch.Tensor): _description_
-        mask (_type_, optional): _description_. Defaults to None.
-        dropout (_type_, optional): _description_. Defaults to None.
+        query (torch.Tensor): 查询向量
+        key (torch.Tensor): 键向量，一般与value相同
+        value (torch.Tensor): 值向量，一般与key相同
+        mask (torch.Tensor, optional): mask向量，他是一个与key形状相同的向量，主要作用是找到有0的地方，用-1e9 (负无穷) 来替代。
+        dropout (nn.Dropout, optional): 丢弃层，在对象创建的时候就指定了丢弃率，调用时传入的参数为要随机丢弃结果的向量。
 
     Returns:
-        _type_: _description_
-        nn.Tensor : 加权后的Value
-        nn.Tensor : 注意力权重
+        res_1 (nn.Tensor): 加权后的Value
+        res_2 (nn.Tensor): 注意力权重
     """
     d_k = query.size(-1)
     scores = torch.matmul(query, key.transpose(-2, -1)) \
@@ -35,7 +34,7 @@ def attention(query: torch.Tensor, key: torch.Tensor, value: torch.Tensor, mask=
     return torch.matmul(p_attn, value), p_attn
 
 
-def clones(module, N: int):
+def clones(module: nn.Module, N: int):
     """_summary_
 
     产生N个完全相同的网络层，要求输入与输出形状一致
@@ -43,6 +42,9 @@ def clones(module, N: int):
     Args:
         module (nn.Module): 需要复制的神经网络层
         N (int): 神经网络层数
+
+    Returns:
+        res_1 (nn.ModuleList): N个相同的模型列表 [module1, module2, ..., modulen]
     """
     return nn.ModuleList([copy.deepcopy(module) for _ in range(N)])
 
@@ -50,15 +52,24 @@ def clones(module, N: int):
 class Embeddings(nn.Module):
     """_summary_
 
-    将输入token和输出token转换为d_model维的向量
+    嵌入层，将词转为向量
 
-    Args:
-        nn (_type_): _description_
+    Attrs:
+        d_model (int): 转换后输出向量的维度
+        lut (nn.Embedding): 嵌入层
     """
 
     def __init__(self, d_model, vocab):
+        """_summary_
+
+        将词总数为vocab的词典转换为d_model维的向量
+
+        Attrs:
+            d_model (_type_): 词向量的维度，简单点说就是用多少个数字来表示一个向量
+            vocab (_type_): 词典的大小，也就是单词的数量
+        """
         super(Embeddings, self).__init__()
-        self.lut = nn.Embedding(vocab, d_model)  # TODO what is vocab?
+        self.lut = nn.Embedding(vocab, d_model)
         self.d_model = d_model
 
     def forward(self, x):
@@ -71,24 +82,35 @@ class LayerNorm(nn.Module):
     LayerNorm层，用于归一化
 
     Attrs:
-        a_2 (nn.Parameter): _description_
-        b_2 (nn.Parameter): _description_
-        eps (float): _description_
+        scale (nn.Parameter): scale可学习的缩放因子 shape = (d_model)
+        beta (nn.Parameter): beta是可学习的偏移因子 shape = (d_model)
+        epsilon (float): epsilon是很小的常数，用于数值稳定。
     """
 
-    def __init__(self, features, eps=1e-6):
+    def __init__(self, features, epsilon=1e-6):
         super(LayerNorm, self).__init__()
-        self.a_2 = nn.Parameter(torch.ones(features))
-        self.b_2 = nn.Parameter(torch.zeros(features))
-        self.eps = eps
+        self.scale = nn.Parameter(torch.ones(features))
+        self.beta = nn.Parameter(torch.zeros(features))
+        self.epsilon = epsilon
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor):
         mean = x.mean(-1, keepdim=True)
         std = x.std(-1, keepdim=True)
-        return self.a_2 * (x - mean) / (std + self.eps) + self.b_2
+        return self.scale * (x - mean) / (std + self.epsilon) + self.beta
 
 
 class MultiHeadedAttention(nn.Module):
+    """_summary_
+
+        多头注意力层
+
+    Args:
+        h (int): 注意力层的头数量
+        d_k (int): 每个注意力层处理的向量维度数
+        linears (nn.ModuleList): 四个线性层的列表，分别负责 投影Q、K、V，以及最终结果输出
+        attn (torch.Tensor)：自注意力权重
+        dropout (nn.Dropout)：丢弃层
+    """
     def __init__(self, h, d_model, dropout=0.1):
         super(MultiHeadedAttention, self).__init__()
         assert d_model % h == 0  # 特征的维度要分段放入每个头，所以要整除
@@ -97,10 +119,23 @@ class MultiHeadedAttention(nn.Module):
         self.h = h
         self.linears = clones(nn.Linear(d_model, d_model),
                               4)  # 前三层是线性投影层，最后一层是线性输出
-        self.attn = None  # 自注意力权重
+        self.attn = None 
         self.dropout = nn.Dropout(p=dropout)
 
     def forward(self, query, key, value, mask=None):
+        """_summary_
+
+        对传入的Q、K、V做线性投影后，经过多头注意力层获得各种模式的向量输出，然后将结果使用一个线性层拼接后输出。
+        
+        Args:
+            query (_type_): _description_
+            key (_type_): _description_
+            value (_type_): _description_
+            mask (_type_, optional): _description_. Defaults to None.
+
+        Returns:
+            _type_: _description_
+        """
         if mask is not None:
             # 对所有的头都使用同一个mask
             mask = mask.unsqueeze(1)
