@@ -2,3 +2,20 @@
 
 Transformer的简单实现，根据 [**基于transformers的自然语言处理(NLP)入门**](https://github.com/datawhalechina/learn-nlp-with-transformers)，这个项目的一个总结
 
+层归一化（Layer Normalization）是一种用于神经网络中的归一化技术，它对每个样本的特征维度进行归一化，而不是对整个批次进行归一化。层归一化的公式如下：
+
+对于输入张量 $X$，其形状为 $(\text{batch\_size}, \text{num\_features})$，层归一化的公式可以表示为：
+
+$$\text{LN}(X) = \gamma \odot \frac{X - \mu}{\sqrt{\sigma^2 + \epsilon}} + \beta$$
+
+其中：
+- $\text{LN}(X)$ 表示层归一化后的张量。
+- $\gamma$ 是可学习的缩放因子（scale），形状为 $(\text{num\_features},)$，其中 $\odot$ 表示逐元素相乘。
+- $\mu$ 是样本均值，计算方式为沿着特征维度的平均值，形状为 $(\text{batch\_size},)$。
+- $\sigma$ 是样本标准差，计算方式为沿着特征维度的标准差，形状为 $(\text{batch\_size},)$。
+- $\epsilon$ 是一个小的常数，用于数值稳定性，通常取较小的值，如 $1e-5$。
+- $\beta$ 是可学习的偏移因子（shift），形状为 $(\text{num\_features},)$。
+
+层归一化的公式将输入张量 $X$ 减去样本均值 $\mu$，然后除以样本标准差 $\sigma$，得到标准化后的张量。缩放因子 $\gamma$ 和偏移因子 $\beta$ 用于调整归一化后的张量的范围和偏移，使得网络可以学习适合任务的变换。
+
+需要注意的是，层归一化是针对每个样本的特征维度进行归一化，因此在公式中均值和标准差是沿着特征维度计算的。这与批归一化（Batch Normalization）不同，批归一化是对整个批次的特征维度进行归一化。
