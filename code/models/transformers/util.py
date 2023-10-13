@@ -64,9 +64,9 @@ class Embeddings(nn.Module):
 
         将词总数为vocab的词典转换为d_model维的向量
 
-        Attrs:
-            d_model (_type_): 词向量的维度，简单点说就是用多少个数字来表示一个向量
-            vocab (_type_): 词典的大小，也就是单词的数量
+        Args:
+            d_model (int): 词向量的维度，简单点说就是用多少个数字来表示一个向量
+            vocab (int): 词典的大小，也就是单词的数量
         """
         super(Embeddings, self).__init__()
         self.lut = nn.Embedding(vocab, d_model)
@@ -94,6 +94,9 @@ class LayerNorm(nn.Module):
         self.epsilon = epsilon
 
     def forward(self, x: torch.Tensor):
+        """
+        具体就是层归一化的一个数学定义
+        """
         mean = x.mean(-1, keepdim=True)
         std = x.std(-1, keepdim=True)
         return self.scale * (x - mean) / (std + self.epsilon) + self.beta
@@ -104,29 +107,30 @@ class MultiHeadedAttention(nn.Module):
 
         多头注意力层
 
-    Args:
+    Attrs:
         h (int): 注意力层的头数量
         d_k (int): 每个注意力层处理的向量维度数
         linears (nn.ModuleList): 四个线性层的列表，分别负责 投影Q、K、V，以及最终结果输出
         attn (torch.Tensor)：自注意力权重
         dropout (nn.Dropout)：丢弃层
     """
+
     def __init__(self, h, d_model, dropout=0.1):
         super(MultiHeadedAttention, self).__init__()
         assert d_model % h == 0  # 特征的维度要分段放入每个头，所以要整除
         # 假设 d_v 总是等于 d_k
-        self.d_k = d_model // h
         self.h = h
+        self.d_k = d_model // h
         self.linears = clones(nn.Linear(d_model, d_model),
                               4)  # 前三层是线性投影层，最后一层是线性输出
-        self.attn = None 
+        self.attn = None
         self.dropout = nn.Dropout(p=dropout)
 
     def forward(self, query, key, value, mask=None):
         """_summary_
 
         对传入的Q、K、V做线性投影后，经过多头注意力层获得各种模式的向量输出，然后将结果使用一个线性层拼接后输出。
-        
+
         Args:
             query (_type_): _description_
             key (_type_): _description_
@@ -145,6 +149,9 @@ class MultiHeadedAttention(nn.Module):
         query, key, value = [linear(qkv).view(nbatches, -1, self.h, self.d_k).transpose(1, 2)
                              for linear, qkv in zip(self.linears, (query, key, value))]
 
+         # 会取出 self.linears[0](query) self.linears[1](key) self.linears[2](value)
+         
+
         # 在批处理中，对所有投影的向量应用attention
         x, self.attn = attention(query=query, key=key,
                                  value=value, mask=mask, dropout=self.dropout)
@@ -156,7 +163,14 @@ class MultiHeadedAttention(nn.Module):
 
 
 class PositionwiseFeedForward(nn.Module):
+    """_summary_
 
+    其实只是由两个线性层组成而已，使用ReLu作为非线性变换函数。
+    Attrs:
+        l_1 (nn.Linear): 升维，扩大模型表达能力
+        l_2 (nn.Linear): 降维，避免过拟合
+        dropout (nn.Dropout): 避免过拟合
+    """
     def __init__(self, d_model, d_ff, dropout=0.1):
         super(PositionwiseFeedForward, self).__init__()
         self.l_1 = nn.Linear(d_model, d_ff)
@@ -168,19 +182,39 @@ class PositionwiseFeedForward(nn.Module):
 
 
 class PositionalEncoding(nn.Module):
+    """_summary_
+
+    位置编码层
+
+    Attrs:
+        dropout (nn.Dropout): 避免过拟合
+    """
     def __init__(self, d_model, dropout, max_len=5000):
+        """_summary_
+
+        位置编码层。
+            位置编码是针对句子而言的，因此只需要句子长度和词的特征长度就可以计算了
+
+        Args:
+            d_model (_type_): 特征向量的维度
+            dropout (_type_): _description_
+            max_len (int, optional): 序列最大长度. Defaults to 5000.
+        """
         super(PositionalEncoding, self).__init__()
         self.dropout = nn.Dropout(p=dropout)
 
-        # 在对数空间上计算位置编码
-        pe = torch.zeros(max_len, d_model)
-        position = torch.arange(0, max_len).unsqueeze(1)
-        div_term = torch.exp(torch.arange(0, d_model, 2) *
-                             -(math.log(10000.0)/d_model))
+        # max_len行，d_model列
+        pe = torch.zeros(max_len, d_model) 
+        # 创建索引 # unsqueeze()扩展维度，就是在shape(i)这个位置插入一个1
+        position = torch.arange(0, max_len).unsqueeze(1) # shape = (max_len, 1)
+        # 计算除数
+        div_term = torch.exp(torch.arange(0, d_model, 2) * -(math.log(10000.0)/d_model))# 步长为2，shape = (d_model/2,)
+        #div_term2 = torch.pow(10000, -(torch.arange(0, d_model, 2) / d_model)) # 步长为2，shape = (d_model/2,)
+
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term)
-        pe = pe.unsqueeze(0)
-        self.register_buffer('pe', pe)
+        pe = pe.unsqueeze(0) # 与x对齐
+        self.register_buffer('pe', pe) # 相当于 self.pe = pe
 
     def forward(self, x):
         x = x + Variable(self.pe[:, :x.size(1)],
@@ -210,6 +244,6 @@ class SublayerConnection(nn.Module):
 
         Args:
             x (_type_): 未经过归一化的特征
-            sublayer (function): 需要残差连接和归一化的前一层
+            sublayer (function): 需要残差连接和归一化的前一层，
         """
         return x + self.dropout(sublayer(self.norm(x)))

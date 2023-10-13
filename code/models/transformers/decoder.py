@@ -14,6 +14,12 @@ class Decoder(nn.Module):
     """
 
     def __init__(self, layer, N):
+        """_summary_
+        
+        Args:
+            layer (DecoderLayer): 单层解码器
+            N (int): 层数
+        """
         super(Decoder, self).__init__()
         self.layers = clones(layer, N)
         self.norm = LayerNorm(layer.size)
@@ -27,11 +33,23 @@ class Decoder(nn.Module):
 class DecoderLayer(nn.Module):
     """_summary_
 
-    Args:
-        nn (_type_): _description_
+    Attrs:
+        size (int): 特征向量的维度
+        self_attn (MultiHeadedAttention): 多头注意力层
+        src_attn (MultiHeadedAttention): 多头注意力层
+        feed_forward (PositionwiseFeedForward): 一个包含两个线性层的FFN
+        sublayer (nn.ModuleList): 残差+归一化层
     """
 
     def __init__(self, size, self_attn, src_attn, feed_forward, dropout):
+        """
+        Args:
+            size (int): 特征向量的维度
+            self_attn (MultiHeadedAttention): 多头注意力层
+            src_attn (MultiHeadedAttention): 多头注意力层
+            feed_forward (PositionwiseFeedForward): 一个包含两个线性层的FFN
+            dropout (float): 归一化层的丢弃率
+        """
         self.size = size
         self.self_attn = self_attn
         self.src_attn = src_attn
