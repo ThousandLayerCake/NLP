@@ -89,9 +89,9 @@ def backtracking(self, 参数):
 
 ## 回溯法例题
 
-- [组合问题合集](.\combinations\README.md)
-- [分割问题合集](.\splits\README.md)
-- [排列问题合集](.\permutations\README.md)
+- [组合问题合集](./combinations/README.md)
+- [分割问题合集](./splits/README.md)
+- [排列问题合集](./permutations/README.md)
 - [HARD问题合集](./hards/README.md)
 - [棋盘问题合集](./board/README.md)
 
